@@ -174,6 +174,44 @@ class Robot(ABC):
     def get_action(self, inputs: Any) -> Any:
         pass
 
+    def save_structure(self):
+        """
+        Saves the structure of the robot in a json file
+        """
+        try:
+            structure_dict = {
+                'structure': self.structure.tolist(),
+                'connections': self.connections.tolist()
+            }
+            with open(self.structure_path, 'w') as json_file:
+                json.dump(structure_dict, json_file, indent=4)
+        except Exception as e:
+            print("Cannot save structure, error: ", e)
+
+    def save_hrules(self):
+        """
+        Saves the hrules of the robot in a json file
+        """
+        try:
+            hrules = []
+            for voxel in self.voxels:
+                hrules += voxel.nn.hrules
+            with open(self.structure_path, 'w') as json_file:
+                json.dump(hrules, json_file, indent=4)
+        except Exception as e:
+            print("Cannot save hrules, error: ", e)
+
+    def _load_hrules(self):
+        """
+        Loads the hrules of the robot from a json file
+        """
+        try:
+            with open(self.structure_path, 'r') as json_file:
+                hrules = json.load(json_file)
+            return hrules
+        except Exception as e:
+            print("Cannot load hrules, error: ", e)
+
 
 class Worm(Robot):
 
@@ -181,12 +219,14 @@ class Worm(Robot):
     DEFAULT_CONNECTIONS = np.array([[0, 1, 2, 3], [1, 2, 3, 4]])
 
     def __init__(self, structure_path: str, nodes: List[int], network_type: NetworkType, eta: float,
-                 random_structure: bool = False, raise_error_in_case_of_failure: bool = False):
+                 random_structure: bool = False, raise_error_in_case_of_failure: bool = False,
+                 pretrained: bool = False):
         super().__init__(structure_path, nodes, network_type, eta)
         is_structure_to_read = not random_structure
         self._check_structure_path(structure_path, is_structure_to_read)
         if random_structure:
             self.structure, self.connections, self.voxels = self._generate_random_structure(1, 5)
+            self.save_structure()
         else:
             try:
                 self.structure, self.connections, self.voxels = self._generate_predefined_structure()
@@ -199,4 +239,9 @@ class Worm(Robot):
                     self.voxels = self._generate_voxels(self.structure)
 
         self._inner_connections = self._generate_inner_connections()
-        self._node_assignment = self._assign_nn_to_each_voxel()
+        if pretrained:
+            self._node_assignment = self._assign_nn_to_each_voxel()
+            hrules = self._load_hrules()
+            self.set_hrules(hrules)
+        else:
+            self._node_assignment = self._assign_nn_to_each_voxel()
