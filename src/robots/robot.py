@@ -1,6 +1,6 @@
 import json
 import os
-from abc import ABC, abstractmethod
+from abc import ABC
 from enum import Enum
 
 from typing import Tuple, List, Optional, Any
@@ -58,7 +58,7 @@ class Robot(ABC):
         """
         params_number = 0
         for voxel in self.voxels:
-            params_number += voxel.parameters_number
+            params_number += voxel.parameters_number * 4
         return params_number
 
     @staticmethod

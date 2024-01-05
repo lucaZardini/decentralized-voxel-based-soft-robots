@@ -1,6 +1,7 @@
 import argparse
 
 from environments.type import EnvironmentType
+from evolutionary_algorithm.evo_alg import EvoAlgoType
 from manager import Manager
 from networks.type import NetworkType
 from robots.robot import RobotType
@@ -31,8 +32,16 @@ def main():
     # arg_parser.add_argument("--weight-path", type=str, required=True,
     #                         help="The path to the weights of the ABCD parameters, or where to store them")
     arg_parser.add_argument("--generations", type=int, required=False, default=10, help="Number of generations")
-    arg_parser.add_argument("--individuals", type=int, required=False, default=20,
-                            help="The individuals per generation")
+    arg_parser.add_argument("--offsprings", type=int, required=False, default=20,
+                            help="The offsprings")
+    arg_parser.add_argument("--population-size", type=int, required=False, default=4,
+                            help="The population size")
+    arg_parser.add_argument("--sigma", type=float, required=False, default=1.0,
+                            help="The sigma")
+    arg_parser.add_argument("--evo-algo-type", type=EvoAlgoType, required=False, default=EvoAlgoType.CMAES,
+                            choices=list(EvoAlgoType), help="The evolutionary algorithm to use")
+    arg_parser.add_argument("--multi-processing", default=False, action="store_true", required=False,
+                            help="Use multi processing")
 
     args = arg_parser.parse_args()
 
@@ -40,22 +49,9 @@ def main():
         raise ValueError("You must specify if you want to train or prune an existing network.")
     manager = Manager(args.robot, args.robot_structure_path, args.random_structure,
                       args.raise_error_in_case_of_loading_structure_path, args.env, args.network, args.nodes,
-                      args.eta)
+                      args.evo_algo_type, args.offsprings, args.population_size, args.sigma, args.eta)
     if args.train:
         pass
-        # manager.train(
-        #     dataset_type=args.dataset,
-        #     operation_type=args.operation,
-        #     addition_train_length=args.digit_len,
-        #     addition_test_length=args.digit_len,
-        #     weight_out_path=args.weight_path,
-        #     network_type=args.network,
-        #     epochs=args.epochs,
-        #     batch_size=args.batch_size,
-        #     learning_rate=args.learning_rate,
-        #     logic_file=args.logic_file,
-        #     limit_train_dataset=args.limit_train
-        # )
     elif args.prune:
         # manager.test(args.dataset, args.operation, args.digit_len, args.digit_len, args.weight_path, args.network, args.logic_file)
         pass
