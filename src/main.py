@@ -29,8 +29,8 @@ def main():
                             help="Create a network and train it")
     arg_parser.add_argument("--prune", default=False, action="store_true", required=False,
                             help="Prune the network")
-    # arg_parser.add_argument("--weight-path", type=str, required=True,
-    #                         help="The path to the weights of the ABCD parameters, or where to store them")
+    arg_parser.add_argument("--weight-path", type=str, required=True,
+                            help="The path to the weights of the ABCD parameters, or where to store them")
     arg_parser.add_argument("--generations", type=int, required=False, default=10, help="Number of generations")
     arg_parser.add_argument("--offsprings", type=int, required=False, default=20,
                             help="The offsprings")
@@ -48,7 +48,7 @@ def main():
     if not args.train and not args.prune:
         raise ValueError("You must specify if you want to train or prune an existing network.")
     manager = Manager(args.robot, args.robot_structure_path, args.random_structure,
-                      args.raise_error_in_case_of_loading_structure_path, args.env, args.network, args.nodes,
+                      args.raise_error_in_case_of_loading_structure_path, args.env, args.network, args.nodes, args.weight_path,
                       args.evo_algo_type, args.offsprings, args.population_size, args.sigma, args.eta)
     if args.train:
         pass

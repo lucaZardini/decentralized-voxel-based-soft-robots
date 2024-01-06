@@ -43,6 +43,8 @@ class Robot(ABC):
         self.nodes = nodes
         self.network_type = network_type
         self.eta = eta
+        self._previous_activation_value = None
+        self._current_activation_value = None
 
     @property
     def voxel_number(self) -> int:
@@ -171,8 +173,24 @@ class Robot(ABC):
         for voxel in self.voxels:
             voxel.nn.update_weights()
 
-    def get_action(self, inputs: Any) -> Any:
-        pass
+    def get_action(self, velocity_x: float, velocity_y: float, ground_contact: float) -> Any:  # TODO
+        action = []
+        for voxel in self.voxels:
+            adjacent_activations = []
+            adjacent_voxels = self._inner_connections[voxel.id]
+            for adjacent_voxel in adjacent_voxels:
+                if self._previous_activation_value is None or adjacent_voxel not in self._previous_activation_value:
+                    adjacent_activations.append(0.0)
+                else:
+                    adjacent_activations.append(self._previous_activation_value[adjacent_voxel])
+            input = np.array(
+                [velocity_x, velocity_y, ground_contact] + adjacent_activations
+            )
+            output = voxel.nn.activate(input)
+            self._current_activation_value[voxel.id] = output[1]
+            action.append(output[0])
+        self._previous_activation_value = self._current_activation_value
+        return action
 
     def save_structure(self):
         """

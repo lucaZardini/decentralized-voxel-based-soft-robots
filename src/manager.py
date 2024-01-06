@@ -1,5 +1,6 @@
+import json
 from multiprocessing import Pool
-from typing import List, Any
+from typing import List, Any, Optional
 
 import numpy as np
 from evogym import EvoViewer
@@ -27,7 +28,7 @@ class Manager:
                  robot_type: RobotType, structure_path: str, random_structure: bool,
                  raise_error_in_case_of_loading_structure_path: bool,
                  environment_type: EnvironmentType,
-                 network_type: NetworkType, nodes: List[int],
+                 network_type: NetworkType, nodes: List[int], weight_path: str,
                  evo_algo_type: EvoAlgoType, offsprings: int, population_size: int, sigma: float,
                  eta: float = 0.1):
         self.structure_path = structure_path
@@ -38,13 +39,13 @@ class Manager:
         self.network_type = network_type
         self.nodes = nodes
         self.eta = eta
+        self.weight_path = weight_path
         self.raise_error_in_case_of_loading_structure_path = raise_error_in_case_of_loading_structure_path
         self.robot = initialize_robot(self.robot_type, self.structure_path, self.random_structure, self.raise_error_in_case_of_loading_structure_path,
                                       self.network_type, self.nodes, self.eta)
         self.evolutionary_algorithm = EvoAlgoManager.get_evolutionary_algorithm(evo_algo_type, self.robot.parameters_number, offsprings, population_size, sigma)
 
     def train(self, generations: int, max_steps: int, multi_processing: bool = False, display: bool = False):
-        # self.simulator.reset()
         for i in range(generations):
             candidates = self.evolutionary_algorithm.get_candidates()
             if multi_processing:
@@ -52,13 +53,20 @@ class Manager:
             else:
                 fitnesses = self.run_single_processing_simulations(candidates, max_steps, display)
             self.evolutionary_algorithm.update(candidates, fitnesses)
-            best_fitness_index = np.argmax(fitnesses)  # TODO: highest or lowest?
+            best_fitness_index = np.argmin(fitnesses)
             candidate = candidates[best_fitness_index]
-            self.save_best_individual(candidate)
+            self.save_individual(candidate, i, fitnesses[best_fitness_index])
+        best_individual = self.evolutionary_algorithm.get_best()
+        best_fitness = self.evolutionary_algorithm.get_best_fitness()
+        self.save_individual(best_individual, None, best_fitness)
 
-    def save_best_individual(self, candidate: Any):  # TODO: does it have any sense?
-        self.robot.set_hrules(candidate)
-        self.robot.save()
+    def save_individual(self, candidate: Any, generation: Optional[int], fitness: float):
+        if generation is not None:
+            file_path = self.weight_path + f'_{generation}'
+        else:
+            file_path = self.weight_path + "_best"
+        with open(file_path, 'w') as f:
+            json.dump({"candidate": candidate, "fitness": fitness}, f, indent=4)
 
     def run_multi_processing_simulations(self, candidates: List[Any], max_steps: int):
         with Pool(self.offsprings) as p:
@@ -116,9 +124,9 @@ def run_candidate_simulation(candidate: Any, robot_type: RobotType, structure_pa
             simulator.reset()
         rewards[j] = 0
         while not done:  # TODO: maybe set also max number of iterations
-            # TODO: implement action:
-            #  get the inputs from the env and pass them to the network together with the previous activation function
-            obs, rew, done, _ = environment.step()  # TODO: pass the action to the env
+            # TODO: get the inputs from the env
+            output = robot.get_action()  # TODO: pass the inputs
+            obs, rew, done, _ = environment.step(output)
             rewards[j] += rew
             robot.update_weights()
             if display:

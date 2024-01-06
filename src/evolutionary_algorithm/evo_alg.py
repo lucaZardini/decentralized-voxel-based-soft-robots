@@ -35,6 +35,14 @@ class EvoAlgo(ABC):
     def update(self, candidates, fitnesses):
         pass
 
+    @abstractmethod
+    def get_best(self):
+        pass
+
+    @abstractmethod
+    def get_best_fitness(self):
+        pass
+
 
 class CMAES(EvoAlgo):
 
@@ -56,6 +64,12 @@ class CMAES(EvoAlgo):
 
     def update(self, candidates, fitnesses):
         self.cmaes.tell(candidates, fitnesses)
+
+    def get_best(self):
+        return self.cmaes.best.x
+
+    def get_best_fitness(self):
+        return self.cmaes.best.f
 
     def __generate_init_range(self):
         return np.asarray([random.uniform(self.pop_init_range[0],
