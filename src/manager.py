@@ -9,6 +9,7 @@ from environments.type import EnvironmentType, EnvironmentManager
 from evolutionary_algorithm.evo_alg import EvoAlgoManager, EvoAlgoType
 from networks.type import NetworkType
 from robots.robot import RobotType, RobotManager, Robot
+from utils import NpEncoder
 
 
 def initialize_robot(robot_type: RobotType, structure_path: str, random_structure: bool,
@@ -45,15 +46,15 @@ class Manager:
                                       self.network_type, self.nodes, self.eta)
         self.evolutionary_algorithm = EvoAlgoManager.get_evolutionary_algorithm(evo_algo_type, self.robot.parameters_number, offsprings, population_size, sigma)
 
-    def train(self, generations: int, max_steps: int, multi_processing: bool = False, display: bool = False):
+    def train(self, generations: int, number_of_attempts: int, max_steps: int, multi_processing: bool = False, display: bool = False):
         for i in range(generations):
             candidates = self.evolutionary_algorithm.get_candidates()
             if multi_processing:
-                fitnesses = self.run_multi_processing_simulations(candidates, max_steps)
+                fitnesses = self.run_multi_processing_simulations(candidates, number_of_attempts, max_steps)
             else:
-                fitnesses = self.run_single_processing_simulations(candidates, max_steps, display)
+                fitnesses = self.run_single_processing_simulations(candidates, number_of_attempts, max_steps, display)
             self.evolutionary_algorithm.update(candidates, fitnesses)
-            best_fitness_index = np.argmin(fitnesses)
+            best_fitness_index = np.argmax(fitnesses)
             candidate = candidates[best_fitness_index]
             self.save_individual(candidate, i, fitnesses[best_fitness_index])
         best_individual = self.evolutionary_algorithm.get_best()
@@ -62,13 +63,13 @@ class Manager:
 
     def save_individual(self, candidate: Any, generation: Optional[int], fitness: float):
         if generation is not None:
-            file_path = self.weight_path + f'_{generation}'
+            file_path = self.weight_path + f'_{generation}.json'
         else:
-            file_path = self.weight_path + "_best"
+            file_path = self.weight_path + "_best.json"
         with open(file_path, 'w') as f:
-            json.dump({"candidate": candidate, "fitness": fitness}, f, indent=4)
+            json.dump({"candidate": candidate, "fitness": fitness}, f, indent=4, cls=NpEncoder)
 
-    def run_multi_processing_simulations(self, candidates: List[Any], max_steps: int):
+    def run_multi_processing_simulations(self, candidates: List[Any], number_of_attempts: int, max_steps: int):
         with Pool(self.offsprings) as p:
             return p.map(run_candidate_simulation, (
                 candidates,
@@ -79,10 +80,12 @@ class Manager:
                 self.network_type,
                 self.nodes,
                 self.eta,
-                self.environment_type, max_steps)
+                self.environment_type,
+                number_of_attempts,
+                max_steps)
                          )
 
-    def run_single_processing_simulations(self, candidates: List[Any], max_steps: int, display: bool = False):
+    def run_single_processing_simulations(self, candidates: List[Any], number_of_attempts: int, max_steps: int, display: bool = False):
         fitnesses = []
         for candidate in candidates:
             fitness = run_candidate_simulation(
@@ -95,6 +98,7 @@ class Manager:
                 self.nodes,
                 self.eta,
                 self.environment_type,
+                number_of_attempts,
                 max_steps,
                 display)
             fitnesses.append(fitness)
@@ -103,10 +107,34 @@ class Manager:
     def prune(self):
         pass
 
+    def test(self):
+        with open(self.weight_path, 'r') as f:
+            data = json.load(f)
+        candidate = data["candidate"]
+        fitness = data["fitness"]
+        self.test_simulation(candidate)
+
+    def test_simulation(self, candidate: Any):
+        robot = initialize_robot(self.robot_type, self.structure_path, self.random_structure, self.raise_error_in_case_of_loading_structure_path,
+                                    self.network_type, self.nodes, self.eta)
+        environment = initialize_environment(self.environment_type, robot)
+        robot.set_hrules(candidate)
+        simulator = environment.sim
+        viewer = EvoViewer(simulator)
+        done = False
+        while not done:
+            velocity = environment.get_vel_com_obs('robot')
+            output = robot.get_action(velocity_x=velocity[0], velocity_y=velocity[1])
+            output = np.array(output)
+            obs, rew, done, _ = environment.step(output)
+            robot.update_weights()
+            viewer.render('screen')
+
 
 def run_candidate_simulation(candidate: Any, robot_type: RobotType, structure_path: str, random_structure: bool,
                              raise_error_in_case_of_loading_structure_path: bool, network_type: NetworkType,
-                             nodes: List[int], eta: float, environment_type: EnvironmentType, max_steps: int,
+                             nodes: List[int], eta: float, environment_type: EnvironmentType,
+                             number_of_attempts: int, max_steps: int,
                              display: bool = False) -> float:
     robot = initialize_robot(robot_type, structure_path, random_structure, raise_error_in_case_of_loading_structure_path,
                              network_type, nodes, eta)
@@ -118,19 +146,25 @@ def run_candidate_simulation(candidate: Any, robot_type: RobotType, structure_pa
         simulator = environment.sim
         viewer = EvoViewer(simulator)
     rewards = []
-    for j in range(max_steps):
+    for j in range(number_of_attempts):
+        step = 0
         done = False
         if display:
             simulator.reset()
-        rewards[j] = 0
+        rewards.append(0)
         while not done:  # TODO: maybe set also max number of iterations
             # TODO: get the inputs from the env
-            output = robot.get_action()  # TODO: pass the inputs
+            step += 1
+            velocity = environment.get_vel_com_obs('robot')
+            output = robot.get_action(velocity_x=velocity[0], velocity_y=velocity[1])  # TODO: pass the inputs
+            output = np.array(output)
             obs, rew, done, _ = environment.step(output)
             rewards[j] += rew
             robot.update_weights()
             if display:
                 viewer.render('screen')
+            if step > max_steps:
+                done = True
     if display:
         viewer.render('screen')
-    return -sum(rewards) / max_steps
+    return sum(rewards) / max_steps

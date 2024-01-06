@@ -10,6 +10,7 @@ from evogym import sample_robot
 
 from networks.type import NetworkType, NetworkManager
 from robots.voxel import Voxel
+from utils import NpEncoder
 
 
 class RobotType(Enum):
@@ -135,7 +136,7 @@ class Robot(ABC):
     @staticmethod
     def _generate_voxels(structure: np.ndarray) -> List[Voxel]:
         voxels: List[Voxel] = []
-        for row_index, row in enumerate(structure):
+        for row_index, row in enumerate(list(structure)):
             for value_index, value in enumerate(row):
                 if value in [2, 3]:
                     voxel_id = row_index * len(row) + value_index
@@ -160,7 +161,7 @@ class Robot(ABC):
         number_of_parameters = self.parameters_number
         if len(hrules) != number_of_parameters:
             raise ValueError(f'hrules must be of length {number_of_parameters}')
-        parameter_per_nn = number_of_parameters/self.voxel_number
+        parameter_per_nn = int(number_of_parameters/self.voxel_number)
         start = 0
         for voxel in self.voxels:
             voxel.set_nn_hrules(hrules[start:start+parameter_per_nn])
@@ -173,8 +174,9 @@ class Robot(ABC):
         for voxel in self.voxels:
             voxel.nn.update_weights()
 
-    def get_action(self, velocity_x: float, velocity_y: float, ground_contact: float) -> Any:  # TODO
+    def get_action(self, velocity_x: float, velocity_y: float) -> Any:  # ground_contact: float = 0.0  # TODO
         action = []
+        self._current_activation_value = {}
         for voxel in self.voxels:
             adjacent_activations = []
             adjacent_voxels = self._inner_connections[voxel.id]
@@ -183,13 +185,18 @@ class Robot(ABC):
                     adjacent_activations.append(0.0)
                 else:
                     adjacent_activations.append(self._previous_activation_value[adjacent_voxel])
+            if len(adjacent_activations) < 4:
+                adjacent_activations += [0.0] * (4 - len(adjacent_activations))
+            elif len(adjacent_activations) > 4:
+                raise ValueError(f'adjacent activations must be of length 4, found {len(adjacent_activations)}')
             input = np.array(
-                [velocity_x, velocity_y, ground_contact] + adjacent_activations
+                [velocity_x, velocity_y] + adjacent_activations
             )
             output = voxel.nn.activate(input)
             self._current_activation_value[voxel.id] = output[1]
             action.append(output[0])
         self._previous_activation_value = self._current_activation_value
+        self._current_activation_value = None
         return action
 
     def save_structure(self):
@@ -202,7 +209,7 @@ class Robot(ABC):
                 'connections': self.connections.tolist()
             }
             with open(self.structure_path, 'w') as json_file:
-                json.dump(structure_dict, json_file, indent=4)
+                json.dump(structure_dict, json_file, indent=4, cls=NpEncoder)
         except Exception as e:
             print("Cannot save structure, error: ", e)
 
@@ -215,7 +222,7 @@ class Robot(ABC):
             for voxel in self.voxels:
                 hrules += voxel.nn.hrules
             with open(self.structure_path, 'w') as json_file:
-                json.dump(hrules, json_file, indent=4)
+                json.dump(hrules, json_file, indent=4, cls=NpEncoder)
         except Exception as e:
             print("Cannot save hrules, error: ", e)
 
