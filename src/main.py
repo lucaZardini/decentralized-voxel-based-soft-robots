@@ -42,9 +42,9 @@ def main():
                             help="The sigma")
     arg_parser.add_argument("--evo-algo-type", type=EvoAlgoType, required=False, default=EvoAlgoType.CMAES,
                             choices=list(EvoAlgoType), help="The evolutionary algorithm to use")
-    arg_parser.add_argument("--max_steps", type=float, default=10000, required=False,
+    arg_parser.add_argument("--max_steps", type=float, default=5000, required=False,
                             help="Number of attempts to solve the task per individual before being reset")
-    arg_parser.add_argument("--number-of-attempts", type=float, default=100, required=False,
+    arg_parser.add_argument("--number-of-attempts", type=float, default=1, required=False,
                             help="Number of times to reset the environment before giving up on the individual")
     arg_parser.add_argument("--multi-processing", default=False, action="store_true", required=False,
                             help="Use multi processing")
@@ -66,7 +66,7 @@ def main():
         # manager.test(args.dataset, args.operation, args.digit_len, args.digit_len, args.weight_path, args.network, args.logic_file)
         pass
     elif args.test:
-        manager.test()
+        manager.test(args.max_steps)
 
 
 if __name__ == "__main__":

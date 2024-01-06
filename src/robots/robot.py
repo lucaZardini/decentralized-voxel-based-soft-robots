@@ -138,7 +138,7 @@ class Robot(ABC):
         voxels: List[Voxel] = []
         for row_index, row in enumerate(list(structure)):
             for value_index, value in enumerate(row):
-                if value in [2, 3]:
+                if value in [4, 3]:
                     voxel_id = row_index * len(row) + value_index
                     voxels.append(Voxel(value, voxel_id))
         return voxels
@@ -149,7 +149,7 @@ class Robot(ABC):
         """
         node_assignment = {}
         for voxel in self.voxels:
-            if voxel.type in [2, 3]:
+            if voxel.type in [4, 3]:
                 voxel.assign_nn(NetworkManager.get_network(self.network_type, self.nodes, self.eta))
                 node_assignment[voxel.id] = voxel
         return node_assignment
