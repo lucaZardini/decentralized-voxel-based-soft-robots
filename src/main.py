@@ -1,6 +1,6 @@
 import argparse
 
-from environments.type import EnvironmentType
+from environments.environment import EnvironmentType
 from evolutionary_algorithm.evo_alg import EvoAlgoType
 from manager import Manager
 from networks.type import NetworkType

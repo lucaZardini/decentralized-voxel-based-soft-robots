@@ -5,7 +5,7 @@ from typing import List, Any, Optional
 import numpy as np
 from evogym import EvoViewer
 
-from environments.type import EnvironmentType, EnvironmentManager
+from environments.environment import EnvironmentType, EnvironmentManager
 from evolutionary_algorithm.evo_alg import EvoAlgoManager, EvoAlgoType
 from networks.type import NetworkType
 from robots.robot import RobotType, RobotManager, Robot
@@ -119,29 +119,31 @@ class Manager:
     def test_simulation(self, candidate: Any, max_steps: int):
         robot = initialize_robot(self.robot_type, self.structure_path, self.random_structure, self.raise_error_in_case_of_loading_structure_path,
                                     self.network_type, self.nodes, self.eta)
+        is_ratio_computed = False
         environment = initialize_environment(self.environment_type, robot)
         environment.seed(1)
         robot.set_hrules(candidate)
         simulator = environment.sim
         simulator.reset()
-        # viewer = EvoViewer(simulator)
-        # viewer.track_objects('robot')
+        viewer = EvoViewer(simulator)
+        viewer.track_objects('robot')
         done = False
         are_weights_to_be_updated = True
         step = 0
         reward = 0
+        obs = environment.get_first_obs(robot.voxel_number, is_ratio_computed)
         while not done:
             step += 1
-            velocity = environment.get_vel_com_obs('robot')
-            output = robot.get_action(velocity_x=velocity[0], velocity_y=velocity[1])
+            # velocity = environment.get_vel_com_obs('robot')
+            output = robot.get_action(obs, is_ratio_computed)
             output = np.array(output)
-            obs, rew, done, _ = environment.step(output)
+            obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
             reward += rew
-            if step % 200 == 0 and are_weights_to_be_updated:
+            if step % 400 == 0 and are_weights_to_be_updated:
                 robot.update_weights()
                 if step >= 3*max_steps/4:
                     are_weights_to_be_updated = False
-            # viewer.render('screen')
+            viewer.render('screen')
 
 
 def run_candidate_simulation(kwargs: list) -> float:
@@ -157,6 +159,7 @@ def run_candidate_simulation(kwargs: list) -> float:
     number_of_attempts = kwargs[9]
     max_steps = kwargs[10]
     display = kwargs[11]
+    is_ratio_computed = True
     robot = initialize_robot(robot_type, structure_path, random_structure, raise_error_in_case_of_loading_structure_path,
                              network_type, nodes, eta)
     environment = initialize_environment(environment_type, robot)
@@ -173,15 +176,16 @@ def run_candidate_simulation(kwargs: list) -> float:
         simulator.reset()
         are_weights_to_be_updated = True
         # rewards.append(0)
+        obs = environment.get_first_obs(len(robot.voxels), is_ratio_computed)
         while not done:  # TODO: maybe set also max number of iterations
             # TODO: get the inputs from the env
             step += 1
-            velocity = environment.get_vel_com_obs('robot')
-            output = robot.get_action(velocity_x=velocity[0], velocity_y=velocity[1])  # TODO: pass the inputs
+            # velocity = environment.get_vel_com_obs('robot')
+            output = robot.get_action(obs, is_ratio_computed)  # TODO: pass the inputs
             output = np.array(output)
-            obs, rew, done, _ = environment.step(output)
+            obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
             rewards += rew
-            if step % 200 == 0 and are_weights_to_be_updated:
+            if step % 400 == 0 and are_weights_to_be_updated:
                 robot.update_weights()
                 if step >= 3 * max_steps / 4:
                     are_weights_to_be_updated = False

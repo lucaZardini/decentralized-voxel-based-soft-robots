@@ -104,6 +104,8 @@ class HNN(NN):
         self.hrules = [[[0, 0, 0, 0] for i in range(node)] for node in nodes]
         self.eta = eta
         self.set_weights([0 for _ in range(self.nweights)])
+        self.total_number_of_nodes = sum(self.nodes)
+        self.pruned_synapses = set()
 
     def set_hrules(self, hrules):
         self.hrules = [[] for _ in range(len(self.nodes) - 1)]
@@ -132,3 +134,227 @@ class HNN(NN):
                             self.hrules[l - 1][o][i][2] * self.activations[l - 1][i - 1] +
                             self.hrules[l - 1][o][i][3])
                     self.weights[l - 1][o][i] += dw
+
+    def get_prunable_weights(self):
+        ws = []
+        for i in range(self.nodes[0]):
+            for o in range(self.nodes[0], self.total_number_of_nodes):
+                if not (i == o or (i, o) in self.pruned_synapses):
+                    ws.append(np.abs(self.weights[i, o]))
+
+        for i in range(self.nodes[0], self.nodes[0] + self.nodes[1]):
+            for o in range(self.nodes[0], self.nodes[0] + self.nodes[1]):
+                if not (i == o or (i, o) in self.pruned_synapses):
+                    ws.append(np.abs(self.weights[i, o]))
+
+        for i in range(self.nodes[0], self.nodes[0] + self.nodes[1]):
+            for o in range(self.nodes[0] + self.nodes[1], self.total_number_of_nodes):
+                if not (i == o or (i, o) in self.pruned_synapses):
+                    ws.append(np.abs(self.weights[i, o]))
+        return ws
+
+    def sanitize_weights(self):
+        # clean impossible connections
+        #   outputs to other nodes
+        for o in range(self.nodes[0] + self.nodes[1], self.total_number_of_nodes):
+            for n in range(self.total_number_of_nodes):
+                self.weights[o, n] = 0
+        #   incoming edges to input
+        for n in range(self.total_number_of_nodes):
+            for i in range(self.nodes[0]):
+                self.weights[n, i] = 0
+
+    def prune_weights(self, prune_ratio: float, folder: str = None):
+        weights_prunable = self.get_prunable_weights()
+        threshold = np.percentile(weights_prunable, prune_ratio)
+
+        for i in range(self.total_number_of_nodes):
+            for j in range(i, self.total_number_of_nodes):
+                if np.abs(self.weights[i, j]) <= threshold:
+                    self.weights[i, j] = 0.
+                    self.pruned_synapses.add((i, j))
+
+        self.sanitize_weights()
+        dag, hc = self.dag(fold=folder)
+        top_sort = nx.topological_sort(dag)
+        self.top_sort = list(top_sort)
+        self.cycle_history = hc
+
+    def dag(self, fold=None):
+        graph = nx.from_numpy_matrix(np.array(self.weights), create_using=nx.DiGraph)
+        adj_matrix = nx.to_dict_of_lists(graph)
+        if not fold is None:
+            plt.clf()
+            pos = self.nxpbiwthtaamfalaiwftb(graph)
+            nx.draw(graph, pos=pos, with_labels=True, font_weight='bold')
+            # print("saving")
+            plt.savefig(fold + "_init.png")
+        cycles = self._merge_equivalent_cycle(list(nx.simple_cycles(graph)))
+        history_of_cycles = list()
+        dag = None
+        offset = 0
+        cc = 1
+        # print(adj_matrix)
+        # print("-------")
+        while len(cycles) != 0:
+            history_of_cycles.append(dict())
+            dag = nx.DiGraph()
+
+            dag, cycles, history_of_cycles, cycling_nodes, max_fn_id = self._add_nodes(dag, graph, cycles,
+                                                                                       history_of_cycles,
+                                                                                       offset)
+            offset += max_fn_id
+            not_cycling_nodes = [n for n in list(graph) if n not in cycling_nodes]
+            dag = self._add_edges(dag, adj_matrix, history_of_cycles, not_cycling_nodes)
+            graph = dag.copy()
+            # print("dddddddd")
+            if not fold is None:
+                plt.clf()
+                pos = self.nxpbiwthtaamfalaiwftb(dag)
+                nx.draw(dag, pos=pos, with_labels=True, font_weight='bold')
+                # print("saving")
+
+                plt.savefig(fold + "_" + str(cc) + ".png")
+            cc += 1
+            cycles = self._merge_equivalent_cycle(list(nx.simple_cycles(graph)))
+            adj_matrix = nx.to_dict_of_lists(graph)  # nx.to_numpy_matrix(graph)
+            # print(adj_matrix)
+            # print("-------")
+        if dag is None:
+            dag = graph
+        if not fold is None:
+            with open(fold + "_history.txt", "w") as f:
+                for i in range(len(history_of_cycles)):
+                    for k in history_of_cycles[i].keys():
+                        f.write(str(i) + ";" + str(k) + ";" + str(history_of_cycles[i][k]) + "\n")
+        if not fold is None:
+            plt.clf()
+            pos = self.nxpbiwthtaamfalaiwftb(dag)
+            nx.draw(dag, pos=pos, with_labels=True, font_weight='bold')
+            # print("saving")
+            plt.savefig(fold + "_final.png")
+        return dag, history_of_cycles
+
+    def _get_in_edges(self, adj_m, node):
+        return [i for i in adj_m.keys() if node in adj_m[i]]
+
+    def _get_out_edges(self, adj_m, node):
+        return adj_m[node]
+
+    def _add_edges(self, dag, adj_m, history_of_cycles, not_cycling_nodes):
+        for n in not_cycling_nodes:
+            inc = self._get_in_edges(adj_m, n)
+            outc = self._get_out_edges(adj_m, n)
+            for i in inc:
+                if i in not_cycling_nodes:
+                    if not i == n:
+                        dag.add_edge(i, n)
+                else:
+                    fnid = None
+                    for id in history_of_cycles[-1].keys():
+                        fnid = id if i in history_of_cycles[-1][id] else fnid
+
+                    if not fnid == n:
+                        dag.add_edge(fnid, n)
+
+            for o in outc:
+                if o in not_cycling_nodes:
+                    if o in not_cycling_nodes:
+                        if not n == o:
+                            dag.add_edge(n, o)
+                    else:
+                        fnid = None
+                        for id in history_of_cycles[-1].keys():
+                            fnid = id if o in history_of_cycles[-1][id] else fnid
+                        if not n == fnid:
+                            dag.add_edge(n, fnid)
+
+        for fake_node in history_of_cycles[-1].keys():
+            for n in history_of_cycles[-1][fake_node]:
+                inc = self._get_in_edges(adj_m, n)
+                outc = self._get_out_edges(adj_m, n)
+                for i in inc:
+                    if i in not_cycling_nodes:
+                        if not i == fake_node:
+                            dag.add_edge(i, fake_node)
+                    else:
+                        fnid = None
+                        for id in history_of_cycles[-1].keys():
+                            fnid = id if i in history_of_cycles[-1][id] else fnid
+                        if not fnid == fake_node:
+                            dag.add_edge(fnid, fake_node)
+                for o in outc:
+                    if o in not_cycling_nodes:
+                        if not o == fake_node:
+                            dag.add_edge(fake_node, o)
+                    else:
+                        fnid = None
+                        for id in history_of_cycles[-1].keys():
+                            fnid = id if o in history_of_cycles[-1][id] else fnid
+                        if not fnid == fake_node:
+                            dag.add_edge(fake_node, fnid)
+        return dag
+
+    def _merge_equivalent_cycle(self, cycles):
+        merged_cycles = list()
+        if len(cycles) > 0:
+            merged_cycles.append(cycles[0])
+            for i in range(1, len(cycles)):
+                switching = []
+                for j in range(len(merged_cycles)):
+                    tmp = set(*[cycles[i] + merged_cycles[j]])
+                    if len(tmp) != len(merged_cycles[j]):
+                        if len(tmp) == len(cycles[i]):
+                            switching.append(j)
+                        else:
+                            switching.append(-1)
+                    else:
+                        switching.append(-2)
+                if not -2 in switching:
+                    if not -1 in switching:
+                        merged_cycles[max(switching)] = cycles[i]
+                    else:
+                        merged_cycles.append(cycles[i])
+
+        return merged_cycles
+
+    def _add_nodes(self, dag, old_dag, cycles, history_of_cycles, offset):
+        max_fn_id = 0
+        cycling_nodes = set()
+        old_nodes = list(old_dag)
+        for cycle in cycles:
+            for node in cycle:
+                cycling_nodes.add(node)
+        # inputs have no cycles
+        for i in range(self.nodes[0]):
+            dag.add_node(i)
+        # outputs neither
+        for o in range(self.nodes[0] + self.nodes[1], self.total_number_of_nodes):
+            dag.add_node(o)
+
+        # inner nodes can have cycle
+        for n in range(self.nodes[0], self.nodes[0] + self.nodes[1]):
+            if n not in cycling_nodes:
+                if n in old_nodes:
+                    dag.add_node(n)
+            else:
+                fns = [i for i in range(len(cycles)) if n in cycles[i]]
+                for fn in fns:
+                    if not dag.has_node(self.total_number_of_nodes + fn + offset):
+                        dag.add_node(self.total_number_of_nodes + fn + offset)
+                        history_of_cycles[-1][self.total_number_of_nodes + fn + offset] = cycles[fn][:]
+                        max_fn_id += 1
+
+        # and also fake nodes that hide cycle can have cycle
+        for n in old_nodes:
+            if not n in cycling_nodes:
+                dag.add_node(n)
+            else:
+                fns = [i for i in range(len(cycles)) if n in cycles[i]]
+                for fn in fns:
+                    if not dag.has_node(self.total_number_of_nodes + fn + offset):
+                        dag.add_node(self.total_number_of_nodes + fn + offset)
+                        history_of_cycles[-1][self.total_number_of_nodes + fn + offset] = cycles[fn][:]
+                        max_fn_id += 1
+
+        return dag, cycles, history_of_cycles, cycling_nodes, max_fn_id
