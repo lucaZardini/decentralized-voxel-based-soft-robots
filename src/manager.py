@@ -106,8 +106,45 @@ class Manager:
             fitnesses.append(fitness)
         return fitnesses
 
-    def prune(self):
-        pass
+    def prune(self, max_steps: int):
+        with open(self.weight_path, 'r') as f:
+            data = json.load(f)
+        candidate = data["candidate"]
+        fitness = data["fitness"]
+        robot = initialize_robot(self.robot_type, self.structure_path, self.random_structure,
+                                 self.raise_error_in_case_of_loading_structure_path,
+                                 self.network_type, self.nodes, self.eta)
+        is_ratio_computed = True
+        environment = initialize_environment(self.environment_type, robot)
+        environment.seed(1)
+        robot.set_hrules(candidate)
+        simulator = environment.sim
+        simulator.reset()
+        viewer = EvoViewer(simulator)
+        viewer.track_objects('robot')
+        max_prune_time = 3
+        prune_time = 0
+        done = False
+        are_weights_to_be_updated = True
+        step = 0
+        reward = 0
+        weight_update_ratio = 400
+        obs = environment.get_first_obs(robot.voxel_number, is_ratio_computed)
+        while not done:
+            step += 1
+            # velocity = environment.get_vel_com_obs('robot')
+            output = robot.get_action(obs, is_ratio_computed)
+            output = np.array(output)
+            obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
+            reward += rew
+            if step % weight_update_ratio == 0 and are_weights_to_be_updated:
+                robot.update_weights()
+                if step >= 3 * max_steps / 4:
+                    are_weights_to_be_updated = False
+            if step % (3*weight_update_ratio) == 0 and prune_time <= max_prune_time:
+                robot.prune(folder=".")
+                prune_time += 1
+            viewer.render('screen')
 
     def test(self, max_steps: int):
         with open(self.weight_path, 'r') as f:
@@ -119,7 +156,7 @@ class Manager:
     def test_simulation(self, candidate: Any, max_steps: int):
         robot = initialize_robot(self.robot_type, self.structure_path, self.random_structure, self.raise_error_in_case_of_loading_structure_path,
                                     self.network_type, self.nodes, self.eta)
-        is_ratio_computed = False
+        is_ratio_computed = True
         environment = initialize_environment(self.environment_type, robot)
         environment.seed(1)
         robot.set_hrules(candidate)

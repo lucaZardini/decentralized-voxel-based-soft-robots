@@ -242,9 +242,9 @@ class Robot(ABC):
         except Exception as e:
             print("Cannot load hrules, error: ", e)
 
-    def prune(self, prune_ratio: float):
-        # TODO: do stuff from here! Or first understand what I have copied.
-        pass
+    def prune(self, folder: str, prune_ratio: int = 40):
+        for voxel in self.voxels:
+            voxel.nn.prune_weights(prune_ratio, folder, voxel.id)
 
 
 class Worm(Robot):

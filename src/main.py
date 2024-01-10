@@ -64,7 +64,7 @@ def main():
         manager.train(args.generations, args.number_of_attempts, args.max_steps, args.multi_processing, args.display)
     elif args.prune:
         # manager.test(args.dataset, args.operation, args.digit_len, args.digit_len, args.weight_path, args.network, args.logic_file)
-        pass
+        manager.prune(args.max_steps)
     elif args.test:
         manager.test(args.max_steps)
 
