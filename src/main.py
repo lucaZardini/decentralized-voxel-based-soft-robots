@@ -33,8 +33,8 @@ def main():
                             help="The path to the dataset")
     arg_parser.add_argument("--weight-path", type=str, required=True,
                             help="The path to the weights of the ABCD parameters, or where to store them")
-    arg_parser.add_argument("--generations", type=int, required=False, default=10, help="Number of generations")
-    arg_parser.add_argument("--offsprings", type=int, required=False, default=20,
+    arg_parser.add_argument("--generations", type=int, required=False, default=30, help="Number of generations")
+    arg_parser.add_argument("--offsprings", type=int, required=False, default=15,
                             help="The offsprings")
     arg_parser.add_argument("--population-size", type=int, required=False, default=4,
                             help="The population size")
@@ -46,15 +46,13 @@ def main():
                             help="Number of attempts to solve the task per individual before being reset")
     arg_parser.add_argument("--weight_update_steps", type=float, default=150, required=False,
                             help="Number of steps before updating the weights")
-    arg_parser.add_argument("--number-of-attempts", type=float, default=1, required=False,
-                            help="Number of times to reset the environment before giving up on the individual")
     arg_parser.add_argument("--prune_ratio", type=int, default=None, required=False,
                             help="Pruning ratio to apply to the network")
     arg_parser.add_argument("--weight_pruning_time", type=int, default=None, required=False,
                             help="Update weight step where to prune the network")
     arg_parser.add_argument("--multi-processing", default=False, action="store_true", required=False,
                             help="Use multi processing")
-    arg_parser.add_argument("--raise-error-in-case-of-loading-structure-path", default=False,
+    arg_parser.add_argument("--raise-error-in-case-of-loading-structure-path", default=True,
                             action="store_true", required=False, help="Raise error in case of loading structure path")
     arg_parser.add_argument("--display", default=False, action="store_true", required=False,
                             help="Display the environment")
