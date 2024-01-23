@@ -174,7 +174,7 @@ class Robot(ABC):
         for voxel in self.voxels:
             voxel.nn.update_weights()
 
-    def get_action(self, obs: np.ndarray, is_ratio_computed: bool = True) -> Any:  # ground_contact: float = 0.0  # TODO
+    def get_action(self, obs: np.ndarray, is_ratio_computed: bool = True) -> Any:
         action = []
         self._current_activation_value = {}
         velocity_x = obs[0]
@@ -192,7 +192,8 @@ class Robot(ABC):
             elif len(adjacent_activations) > 4:
                 raise ValueError(f'adjacent activations must be of length 4, found {len(adjacent_activations)}')
             input = np.array(
-                [velocity_x, velocity_y, obs[2+2*voxel_iter], obs[3+2*voxel_iter], obs[4+2*voxel_iter], obs[5+2*voxel_iter]] + adjacent_activations
+                [velocity_x, velocity_y, obs[2+8*voxel_iter], obs[3+8*voxel_iter], obs[4+8*voxel_iter], obs[5+8*voxel_iter],
+                 obs[6+8*voxel_iter], obs[7+8*voxel_iter], obs[8+8*voxel_iter], obs[9+8*voxel_iter]] + adjacent_activations
             )
             if is_ratio_computed:
                 ratios = obs[-self.voxel_number:]
@@ -242,9 +243,9 @@ class Robot(ABC):
         except Exception as e:
             print("Cannot load hrules, error: ", e)
 
-    def prune(self, folder: str, prune_ratio: int = 40):
+    def prune(self, folder: str, prune_time: int, prune_ratio: int = 40):
         for voxel in self.voxels:
-            voxel.nn.prune_weights(prune_ratio, folder, voxel.id)
+            voxel.nn.prune_weights(prune_ratio, folder, prune_time, voxel.id)
 
 
 class Worm(Robot):

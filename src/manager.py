@@ -47,6 +47,7 @@ class Manager:
         self.evolutionary_algorithm = EvoAlgoManager.get_evolutionary_algorithm(evo_algo_type, self.robot.parameters_number, offsprings, population_size, sigma)
 
     def train(self, generations: int, number_of_attempts: int, max_steps: int, multi_processing: bool = False, display: bool = False):
+        best_individuals = {}
         for i in range(generations):
             candidates = self.evolutionary_algorithm.get_candidates()
             if multi_processing:
@@ -56,18 +57,21 @@ class Manager:
             self.evolutionary_algorithm.update(candidates, fitnesses)
             best_fitness_index = np.argmin(fitnesses)
             candidate = candidates[best_fitness_index]
+            best_individuals[candidate] = fitnesses[best_fitness_index]
             self.save_individual(candidate, i, fitnesses[best_fitness_index])
-        best_individual = self.evolutionary_algorithm.get_best()
-        best_fitness = self.evolutionary_algorithm.get_best_fitness()
-        self.save_individual(best_individual, None, best_fitness)
+        # Get best 5 individuals
+        best_individuals = sorted(best_individuals.items(), key=lambda x: x[1])[:5]
+        self.save_individual(best_individuals, None)
 
-    def save_individual(self, candidate: Any, generation: Optional[int], fitness: float):
+    def save_individual(self, candidate: Any, generation: Optional[int], fitness: float = None):
         if generation is not None:
             file_path = self.weight_path + f'_{generation}.json'
+            with open(file_path, 'w') as f:
+                json.dump({"candidate": candidate, "fitness": fitness}, f, indent=4, cls=NpEncoder)
         else:
             file_path = self.weight_path + "_best.json"
-        with open(file_path, 'w') as f:
-            json.dump({"candidate": candidate, "fitness": fitness}, f, indent=4, cls=NpEncoder)
+            with open(file_path, 'w') as f:
+                json.dump({"candidates": json.dumps(candidate)}, f, indent=4, cls=NpEncoder)
 
     def run_multi_processing_simulations(self, candidates: List[Any], number_of_attempts: int, max_steps: int):
         with Pool(8) as p:
@@ -109,8 +113,8 @@ class Manager:
     def prune(self, max_steps: int):
         with open(self.weight_path, 'r') as f:
             data = json.load(f)
+
         candidate = data["candidate"]
-        fitness = data["fitness"]
         robot = initialize_robot(self.robot_type, self.structure_path, self.random_structure,
                                  self.raise_error_in_case_of_loading_structure_path,
                                  self.network_type, self.nodes, self.eta)
@@ -120,31 +124,39 @@ class Manager:
         robot.set_hrules(candidate)
         simulator = environment.sim
         simulator.reset()
-        viewer = EvoViewer(simulator)
-        viewer.track_objects('robot')
-        max_prune_time = 3
-        prune_time = 0
+        # TODO: add if
+        # viewer = EvoViewer(simulator)
+        # viewer.track_objects('robot')
+        number_of_updates = 0
+        update_where_to_prune = 8
         done = False
         are_weights_to_be_updated = True
         step = 0
         reward = 0
-        weight_update_ratio = 400
+        weight_update_ratio = 150
         obs = environment.get_first_obs(robot.voxel_number, is_ratio_computed)
+        robot.update_weights()
+        is_nn_pruned = False
         while not done:
             step += 1
-            # velocity = environment.get_vel_com_obs('robot')
             output = robot.get_action(obs, is_ratio_computed)
             output = np.array(output)
             obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
             reward += rew
             if step % weight_update_ratio == 0 and are_weights_to_be_updated:
                 robot.update_weights()
+                number_of_updates += 1
                 if step >= 3 * max_steps / 4:
                     are_weights_to_be_updated = False
-            if step % (3*weight_update_ratio) == 0 and prune_time <= max_prune_time:
-                robot.prune(folder=".")
-                prune_time += 1
-            viewer.render('screen')
+            if update_where_to_prune is not None and number_of_updates == update_where_to_prune and not is_nn_pruned:
+                # TODO: get folder as param
+                robot.prune(folder="./", prune_time=number_of_updates, prune_ratio=60)
+                are_weights_to_be_updated = False
+                is_nn_pruned = True
+            if step >= max_steps:
+                done = True
+            # TODOçì: add if
+            # viewer.render('screen')
 
     def test(self, max_steps: int):
         with open(self.weight_path, 'r') as f:
@@ -155,7 +167,7 @@ class Manager:
 
     def test_simulation(self, candidate: Any, max_steps: int):
         robot = initialize_robot(self.robot_type, self.structure_path, self.random_structure, self.raise_error_in_case_of_loading_structure_path,
-                                    self.network_type, self.nodes, self.eta)
+                                 self.network_type, self.nodes, self.eta)
         is_ratio_computed = True
         environment = initialize_environment(self.environment_type, robot)
         environment.seed(1)
@@ -169,14 +181,15 @@ class Manager:
         step = 0
         reward = 0
         obs = environment.get_first_obs(robot.voxel_number, is_ratio_computed)
+        robot.update_weights()
         while not done:
             step += 1
-            # velocity = environment.get_vel_com_obs('robot')
             output = robot.get_action(obs, is_ratio_computed)
             output = np.array(output)
             obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
             reward += rew
-            if step % 400 == 0 and are_weights_to_be_updated:
+            # TODO: make env variable or from input
+            if step % 150 == 0 and are_weights_to_be_updated:
                 robot.update_weights()
                 if step >= 3*max_steps/4:
                     are_weights_to_be_updated = False
@@ -214,15 +227,15 @@ def run_candidate_simulation(kwargs: list) -> float:
         are_weights_to_be_updated = True
         # rewards.append(0)
         obs = environment.get_first_obs(len(robot.voxels), is_ratio_computed)
-        while not done:  # TODO: maybe set also max number of iterations
-            # TODO: get the inputs from the env
+        robot.update_weights()
+        while not done:
             step += 1
-            # velocity = environment.get_vel_com_obs('robot')
-            output = robot.get_action(obs, is_ratio_computed)  # TODO: pass the inputs
+            output = robot.get_action(obs, is_ratio_computed)
             output = np.array(output)
             obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
             rewards += rew
-            if step % 400 == 0 and are_weights_to_be_updated:
+            # TODO: env variable or from input
+            if step % 150 == 0 and are_weights_to_be_updated:
                 robot.update_weights()
                 if step >= 3 * max_steps / 4:
                     are_weights_to_be_updated = False

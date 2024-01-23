@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -146,8 +148,7 @@ class HNN(NN):
                         wghts.append(np.abs(self.weights[i - 1][j][k]))
         return wghts
 
-    def prune_weights(self, prune_ratio: float, folder: str = None, voxel_id: int = None):
-        self.dag(fold=folder, voxel_id=voxel_id, status="init")
+    def prune_weights(self, prune_ratio: float, folder: str = None, prune_time: int = None, voxel_id: int = None):
         weights_prunable = self.get_prunable_weights()
         threshold = np.percentile(weights_prunable, prune_ratio)
         for i in range(1, len(self.nodes)):
@@ -156,7 +157,7 @@ class HNN(NN):
                     if np.abs(self.weights[i - 1][j][k]) <= threshold:
                         self.weights[i - 1][j][k] = 0.
                         self.pruned_synapses.add((i - 1, j, k))
-        self.dag(fold=folder, voxel_id=voxel_id, status="final")
+        self.dag(fold=folder, voxel_id=voxel_id, prune_time=prune_time, status="final")
 
     def from_list_to_matrix(self):
         matrix = np.zeros((sum(self.nodes), sum(self.nodes)))
@@ -169,12 +170,48 @@ class HNN(NN):
                     matrix[ix][ox] = self.weights[i - 1][j][k]
         return matrix
 
-    def dag(self, fold=None, voxel_id: int = None, status: str = "init"):
+    def dag(self, fold=None, voxel_id: int = None, prune_time: int = None, status: str = "init"):
         mat = self.from_list_to_matrix()
         graph = nx.from_numpy_matrix(mat, create_using=nx.DiGraph)
-        adj_matrix = nx.to_dict_of_lists(graph)
         if fold is not None and voxel_id is not None:
             plt.clf()
             pos = self.nxpbiwthtaamfalaiwftb(graph)
             nx.draw(graph, pos=pos, with_labels=True, font_weight='bold')
-            plt.savefig(fold + f"{voxel_id}_{status}.png")
+            plt.savefig(fold + f"prune_{prune_time}_voxel_{voxel_id}_{status}.png")
+
+            inputs_mapping = self.get_list_of_connections(graph._adj)
+            with open(fold + f"prune_{prune_time}_voxel_{voxel_id}_{status}.json", "w") as f:
+                json.dump(inputs_mapping, f)
+
+    def get_list_of_connections(self, adj: dict) -> dict:
+        outputs = self.nodes[-1]
+        inputs = self.nodes[0]
+        hidden = self.total_number_of_nodes - outputs - inputs
+        output_connections = {}
+        output_input = {}
+        input_adj = {}
+        for i in range(self.total_number_of_nodes - outputs, self.total_number_of_nodes):
+            output_connections[i] = []
+            output_input[i] = []
+        for i in range(inputs + hidden):
+            input_adj[i] = adj[i].keys()
+
+        for i in range(inputs, inputs + hidden):
+            for output in range(inputs + hidden, self.total_number_of_nodes):
+                if output in input_adj[i]:
+                    output_connections[output].append(i)
+        if hidden != 0:
+            for i in range(inputs):
+                for output in range(inputs + hidden, self.total_number_of_nodes):
+                    for hidden_node in output_connections[output]:
+                        if hidden_node in input_adj[i]:
+                            output_input[output].append(i)
+        else:
+            for i in range(inputs):
+                for output in range(self.total_number_of_nodes - outputs, self.total_number_of_nodes):
+                    if output in input_adj[i]:
+                        output_input[output].append(i)
+        for key, value in output_input.items():
+            value = list(set(value))
+            output_input[key] = value
+        return output_input
