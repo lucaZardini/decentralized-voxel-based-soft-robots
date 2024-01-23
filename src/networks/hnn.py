@@ -177,10 +177,10 @@ class HNN(NN):
             plt.clf()
             pos = self.nxpbiwthtaamfalaiwftb(graph)
             nx.draw(graph, pos=pos, with_labels=True, font_weight='bold')
-            plt.savefig(fold + f"prune_{prune_time}_voxel_{voxel_id}_{status}.png")
+            plt.savefig(fold + f"/prune_{prune_time}_voxel_{voxel_id}_{status}.png")
 
             inputs_mapping = self.get_list_of_connections(graph._adj)
-            with open(fold + f"prune_{prune_time}_voxel_{voxel_id}_{status}.json", "w") as f:
+            with open(fold + f"/prune_{prune_time}_voxel_{voxel_id}_{status}.json", "w") as f:
                 json.dump(inputs_mapping, f)
 
     def get_list_of_connections(self, adj: dict) -> dict:

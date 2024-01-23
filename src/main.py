@@ -16,7 +16,7 @@ def main():
                             default=EnvironmentType.WALKING_FLAT, help="The environment you want to use.")
     arg_parser.add_argument("-n", "--network", required=False, type=NetworkType, choices=list(NetworkType),
                             default=NetworkType.HNN, help="The network you want to use.")
-    arg_parser.add_argument("--nodes", required=False, type=int, nargs="+", default=[8, 5, 2],
+    arg_parser.add_argument("--nodes", required=False, type=int, nargs="+", default=[15, 2],
                             help="The nodes of the network.")
     arg_parser.add_argument("--eta", required=False, type=float, default=0.1,
                             help="The eta of the network.")
@@ -42,10 +42,16 @@ def main():
                             help="The sigma")
     arg_parser.add_argument("--evo-algo-type", type=EvoAlgoType, required=False, default=EvoAlgoType.CMAES,
                             choices=list(EvoAlgoType), help="The evolutionary algorithm to use")
-    arg_parser.add_argument("--max_steps", type=float, default=5000, required=False,
+    arg_parser.add_argument("--max_steps", type=float, default=2000, required=False,
                             help="Number of attempts to solve the task per individual before being reset")
+    arg_parser.add_argument("--weight_update_steps", type=float, default=150, required=False,
+                            help="Number of steps before updating the weights")
     arg_parser.add_argument("--number-of-attempts", type=float, default=1, required=False,
                             help="Number of times to reset the environment before giving up on the individual")
+    arg_parser.add_argument("--prune_ratio", type=int, default=None, required=False,
+                            help="Pruning ratio to apply to the network")
+    arg_parser.add_argument("--weight_pruning_time", type=int, default=None, required=False,
+                            help="Update weight step where to prune the network")
     arg_parser.add_argument("--multi-processing", default=False, action="store_true", required=False,
                             help="Use multi processing")
     arg_parser.add_argument("--raise-error-in-case-of-loading-structure-path", default=False,
@@ -61,12 +67,11 @@ def main():
                       args.raise_error_in_case_of_loading_structure_path, args.env, args.network, args.nodes, args.weight_path,
                       args.evo_algo_type, args.offsprings, args.population_size, args.sigma, args.eta)
     if args.train:
-        manager.train(args.generations, args.number_of_attempts, args.max_steps, args.multi_processing, args.display)
+        manager.train(args.generations, args.number_of_attempts, args.max_steps, args.weight_update_steps, args.multi_processing, args.display)
     elif args.prune:
-        # manager.test(args.dataset, args.operation, args.digit_len, args.digit_len, args.weight_path, args.network, args.logic_file)
-        manager.prune(args.max_steps)
+        manager.prune(args.max_steps, args.weight_update_steps, args.prune_ratio, args.weight_pruning_time, args.display)
     elif args.test:
-        manager.test(args.max_steps)
+        manager.test(args.max_steps, args.weight_update_steps)
 
 
 if __name__ == "__main__":
