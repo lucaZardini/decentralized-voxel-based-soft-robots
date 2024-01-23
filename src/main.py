@@ -43,7 +43,7 @@ def main():
     arg_parser.add_argument("--evo-algo-type", type=EvoAlgoType, required=False, default=EvoAlgoType.CMAES,
                             choices=list(EvoAlgoType), help="The evolutionary algorithm to use")
     arg_parser.add_argument("--max_steps", type=float, default=2000, required=False,
-                            help="Number of attempts to solve the task per individual before being reset")
+                            help="Max number of steps to solve the task per individual before being reset")
     arg_parser.add_argument("--weight_update_steps", type=float, default=150, required=False,
                             help="Number of steps before updating the weights")
     arg_parser.add_argument("--prune_ratio", type=int, default=None, required=False,
@@ -65,7 +65,7 @@ def main():
                       args.raise_error_in_case_of_loading_structure_path, args.env, args.network, args.nodes, args.weight_path,
                       args.evo_algo_type, args.offsprings, args.population_size, args.sigma, args.eta)
     if args.train:
-        manager.train(args.generations, args.number_of_attempts, args.max_steps, args.weight_update_steps, args.multi_processing, args.display)
+        manager.train(args.generations, args.max_steps, args.weight_update_steps, args.multi_processing, args.display)
     elif args.prune:
         manager.prune(args.max_steps, args.weight_update_steps, args.prune_ratio, args.weight_pruning_time, args.display)
     elif args.test:

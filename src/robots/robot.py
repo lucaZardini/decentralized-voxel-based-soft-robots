@@ -174,7 +174,7 @@ class Robot(ABC):
         for voxel in self.voxels:
             voxel.nn.update_weights()
 
-    def get_action(self, obs: np.ndarray, is_ratio_computed: bool = True) -> Any:
+    def get_action(self, obs: np.ndarray, is_ratio_computed: bool = True) -> list:
         action = []
         self._current_activation_value = {}
         velocity_x = obs[0]

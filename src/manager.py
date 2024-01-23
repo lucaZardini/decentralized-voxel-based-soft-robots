@@ -46,15 +46,15 @@ class Manager:
                                       self.network_type, self.nodes, self.eta)
         self.evolutionary_algorithm = EvoAlgoManager.get_evolutionary_algorithm(evo_algo_type, self.robot.parameters_number, offsprings, population_size, sigma)
 
-    def train(self, generations: int, number_of_attempts: int, max_steps: int, weight_update_steps: int,
+    def train(self, generations: int, max_steps: int, weight_update_steps: int,
               multi_processing: bool = False, display: bool = False):
         best_individuals = {}
         for i in range(generations):
             candidates = self.evolutionary_algorithm.get_candidates()
             if multi_processing:
-                fitnesses = self.run_multi_processing_simulations(candidates, number_of_attempts, max_steps)
+                fitnesses = self.run_multi_processing_simulations(candidates, max_steps)
             else:
-                fitnesses = self.run_single_processing_simulations(candidates, number_of_attempts, max_steps, weight_update_steps, display)
+                fitnesses = self.run_single_processing_simulations(candidates, max_steps, weight_update_steps, display)
             self.evolutionary_algorithm.update(candidates, fitnesses)
             best_fitness_index = np.argmin(fitnesses)
             candidate = candidates[best_fitness_index]
@@ -74,7 +74,7 @@ class Manager:
             with open(file_path, 'w') as f:
                 json.dump({"candidates": json.dumps(candidate)}, f, indent=4, cls=NpEncoder)
 
-    def run_multi_processing_simulations(self, candidates: List[Any], number_of_attempts: int, max_steps: int):
+    def run_multi_processing_simulations(self, candidates: List[Any], max_steps: int):
         with Pool(8) as p:
             arguments = []
             for argument in range(len(candidates)):
@@ -87,12 +87,11 @@ class Manager:
                                   self.nodes,
                                   self.eta,
                                   self.environment_type,
-                                  number_of_attempts,
                                   max_steps,
                                   False))
             return p.map(run_candidate_simulation, arguments)
 
-    def run_single_processing_simulations(self, candidates: List[Any], number_of_attempts: int, max_steps: int,
+    def run_single_processing_simulations(self, candidates: List[Any], max_steps: int,
                                           weight_update_steps: int, display: bool = False):
         fitnesses = []
         for candidate in candidates:
@@ -107,7 +106,6 @@ class Manager:
                     self.nodes,
                     self.eta,
                     self.environment_type,
-                    number_of_attempts,
                     max_steps,
                     weight_update_steps,
                     display
@@ -211,12 +209,12 @@ def run_candidate_simulation(kwargs: list) -> float:
     nodes = kwargs[6]
     eta = kwargs[7]
     environment_type = kwargs[8]
-    number_of_attempts = kwargs[9]
-    max_steps = kwargs[10]
-    weight_update_steps = kwargs[11]
-    display = kwargs[12]
+    max_steps = kwargs[9]
+    weight_update_steps = kwargs[10]
+    display = kwargs[11]
     is_ratio_computed = True
-    robot = initialize_robot(robot_type, structure_path, random_structure, raise_error_in_case_of_loading_structure_path,
+    robot = initialize_robot(robot_type, structure_path, random_structure,
+                             raise_error_in_case_of_loading_structure_path,
                              network_type, nodes, eta)
     environment = initialize_environment(environment_type, robot)
     environment.seed(1)
@@ -226,28 +224,26 @@ def run_candidate_simulation(kwargs: list) -> float:
     if display:
         viewer = EvoViewer(simulator)
     rewards = 0
-    for j in range(1):
-        step = 0
-        done = False
-        simulator.reset()
-        are_weights_to_be_updated = True
-        # rewards.append(0)
-        obs = environment.get_first_obs(len(robot.voxels), is_ratio_computed)
-        robot.update_weights()
-        while not done:
-            step += 1
-            output = robot.get_action(obs, is_ratio_computed)
-            output = np.array(output)
-            obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
-            rewards += rew
-            if step % weight_update_steps == 0 and are_weights_to_be_updated:
-                robot.update_weights()
-                if step >= 3 * max_steps / 4:
-                    are_weights_to_be_updated = False
-            if display:
-                viewer.render('screen')
-            if step >= max_steps:
-                done = True
+    step = 0
+    done = False
+    simulator.reset()
+    are_weights_to_be_updated = True
+    obs = environment.get_first_obs(len(robot.voxels), is_ratio_computed)
+    robot.update_weights()
+    while not done:
+        step += 1
+        output = robot.get_action(obs, is_ratio_computed)
+        output = np.array(output)
+        obs, rew, done, _ = environment.step(robot.voxel_number, output, is_ratio_computed)
+        rewards += rew
+        if step % weight_update_steps == 0 and are_weights_to_be_updated:
+            robot.update_weights()
+            if step >= 3 * max_steps / 4:
+                are_weights_to_be_updated = False
+        if display:
+            viewer.render('screen')
+        if step >= max_steps:
+            done = True
     if display:
         viewer.render('screen')
     return -rewards
