@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ### Running the code
 
-The code can be run using the `main.py` script. The script accepts the following arguments:
+The code can be run using the `main.py` script in the `src` directory. The script accepts the following arguments:
 
 | Parameter                                         | Description                                                                                                                         | Required | Default                                     |
 |---------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|----------|---------------------------------------------|
