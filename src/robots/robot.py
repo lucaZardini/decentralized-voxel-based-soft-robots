@@ -28,7 +28,7 @@ class RobotManager:
         if robot_type == RobotType.WORM:
             return Worm(structure_path, nodes, network_type, eta, random_structure, raise_error_in_case_of_failure)
         elif robot_type == RobotType.BIPED:
-            pass
+            raise NotImplementedError(f'robot type {robot_type} not supported')
         else:
             raise ValueError(f'robot type {robot_type} not supported')
 
@@ -174,7 +174,7 @@ class Robot(ABC):
         for voxel in self.voxels:
             voxel.nn.update_weights()
 
-    def get_action(self, obs: np.ndarray, is_ratio_computed: bool = True) -> Any:
+    def get_action(self, obs: np.ndarray, is_ratio_computed: bool = True) -> list:
         action = []
         self._current_activation_value = {}
         velocity_x = obs[0]
@@ -250,8 +250,8 @@ class Robot(ABC):
 
 class Worm(Robot):
 
-    DEFAULT_STRUCTURE = np.array([3, 3, 3, 3, 3])
-    DEFAULT_CONNECTIONS = np.array([[0, 1, 2, 3], [1, 2, 3, 4]])
+    DEFAULT_STRUCTURE = np.array([3, 4, 3, 4, 3, 3])
+    DEFAULT_CONNECTIONS = np.array([[0, 1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6]])
 
     def __init__(self, structure_path: str, nodes: List[int], network_type: NetworkType, eta: float,
                  random_structure: bool = False, raise_error_in_case_of_failure: bool = False,
